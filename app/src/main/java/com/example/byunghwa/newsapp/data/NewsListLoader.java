@@ -1,11 +1,12 @@
 package com.example.byunghwa.newsapp.data;
 
 import android.content.Context;
+import android.net.Uri;
 import android.support.v4.content.AsyncTaskLoader;
 import android.util.Log;
 
 import com.example.byunghwa.newsapp.BuildConfig;
-import com.example.byunghwa.newsapp.OnRefreshStarted;
+import com.example.byunghwa.newsapp.interfaces.OnRefreshStarted;
 import com.example.byunghwa.newsapp.model.News;
 
 import org.json.JSONArray;
@@ -25,6 +26,9 @@ import java.util.List;
 public class NewsListLoader extends AsyncTaskLoader<List<News>> {
     private static final String TAG = "NewsListLoader";
 
+    private static final String KEY_ROOT = "response";
+    private static final String KEY_JSON_ARRAY = "results";
+
     private static final String KEY_ID = "id";
     private static final String KEY_TYPE = "type";
     private static final String KEY_SECTION_ID = "sectionId";
@@ -37,17 +41,30 @@ public class NewsListLoader extends AsyncTaskLoader<List<News>> {
     private static final String KEY_ID_PILLAR = "pillarId";
     private static final String KEY_NAME_PILLAR = "pillarName";
 
+    private static final int CONNECT_TIMEOUT = 5000;
+    private static final int READ_TIMEOUT = 10000;
+
+    private static final String URI_SCEHME = "http";
+    private static final String URI_AUTHORITY = "content.guardianapis.com";
+    private static final String URI_PATH = "search";
+    private static final String URI_QUERY_PARAM = "q";
+    private static final String URI_QUERY_PARAM_API_KEY = "api-key";
+
     private OnRefreshStarted listener;
 
+    private String topicNews;
 
-    public NewsListLoader(Context context, OnRefreshStarted listener) {
+
+    public NewsListLoader(Context context, String topicNews, OnRefreshStarted listener) {
         super(context);
         this.listener = listener;
+        this.topicNews = topicNews;
     }
 
     @Override
     protected void onStartLoading() {
         super.onStartLoading();
+        Log.i(TAG, "onStartLoading getting called...");
         // show refresh indicator
         this.listener.onTaskStarted();
     }
@@ -58,16 +75,24 @@ public class NewsListLoader extends AsyncTaskLoader<List<News>> {
         ArrayList<News> newsArrayList = null;
         HttpURLConnection connection = null;
         try {
-            URL url = new URL("http://content.guardianapis.com/search?q=dna&api-key=" +
-                    BuildConfig.API_KEY);
+            // convert to the Uri.Builder pattern
+            Uri.Builder uriBuilder = new Uri.Builder();
+            uriBuilder.scheme(URI_SCEHME)
+                    .authority(URI_AUTHORITY)
+                    .appendPath(URI_PATH)
+                    .appendQueryParameter(URI_QUERY_PARAM, topicNews)
+                    .appendQueryParameter(URI_QUERY_PARAM_API_KEY, BuildConfig.API_KEY);
+            String queryUrl = uriBuilder.build().toString();
+            URL url = new URL(queryUrl);
+
             connection = (HttpURLConnection) url.openConnection();
 
             String line;
             StringBuilder builder = new StringBuilder();
 
             // set the connection timeout to 5 seconds and the read timeout to 10 seconds
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(10000);
+            connection.setConnectTimeout(CONNECT_TIMEOUT);
+            connection.setReadTimeout(READ_TIMEOUT);
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
             while ((line = reader.readLine()) != null) {
@@ -76,8 +101,8 @@ public class NewsListLoader extends AsyncTaskLoader<List<News>> {
 
             JSONObject json = new JSONObject(builder.toString());
 
-            json = json.getJSONObject("response");
-            jsonArray = json.getJSONArray("results");
+            json = json.getJSONObject(KEY_ROOT);
+            jsonArray = json.getJSONArray(KEY_JSON_ARRAY);
 
             Log.i(TAG, "response: " + jsonArray);
 

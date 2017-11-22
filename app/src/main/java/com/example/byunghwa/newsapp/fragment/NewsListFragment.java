@@ -2,31 +2,31 @@ package com.example.byunghwa.newsapp.fragment;
 
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import com.example.byunghwa.newsapp.OnRefreshStarted;
 import com.example.byunghwa.newsapp.R;
+import com.example.byunghwa.newsapp.activity.SettingsActivity;
 import com.example.byunghwa.newsapp.adapter.CustomStaggeredGridLayoutManager;
 import com.example.byunghwa.newsapp.adapter.NewsListRecyclerViewAdapter;
 import com.example.byunghwa.newsapp.data.NewsListLoader;
+import com.example.byunghwa.newsapp.interfaces.OnRefreshStarted;
 import com.example.byunghwa.newsapp.model.News;
 import com.example.byunghwa.newsapp.util.NetworkUtil;
+import com.example.byunghwa.newsapp.util.ToastUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,16 +46,33 @@ public class NewsListFragment extends Fragment implements NewsListRecyclerViewAd
 
     private List<News> mNewsList;
 
+    // this value is initialized to true
+    private boolean isInitiallyStarted = true;
+
+    // loader ID
+    private static final int ID_LOADER = 1;
+
+    // recyclerview column count
+    private static final int COUNT_COLUMN_RECYCLERVIEW = 2;
+
+    // loader argument key
+    private static final String KEY_LOADER_TOPIC = "topic_news";
+
     public NewsListFragment() {
         // Required empty public constructor
     }
 
     private void fetchNewsList() {
         if (NetworkUtil.isNetworkAvailable(getContext())) {
-            getLoaderManager().getLoader(1).forceLoad();
+            getLoaderManager().getLoader(ID_LOADER).forceLoad();
         } else {
-            Toast.makeText(getActivity(), "No network connection.", Toast.LENGTH_SHORT).show();
+            ToastUtil.showToastMessage(getActivity(), R.string.message_no_network_connection);
 
+            /* only hide recyclerview if the list is empty
+
+              we don't want to lose the existing news list if the refresh operation
+              cannot be performed due to a lack of internet connection
+             */
             if (mNewsList == null || mNewsList.size() == 0) {
                 mEmptyView.setVisibility(View.VISIBLE);
                 mRecyclerView.setVisibility(View.GONE);
@@ -78,8 +95,7 @@ public class NewsListFragment extends Fragment implements NewsListRecyclerViewAd
         mAdapter = new NewsListRecyclerViewAdapter();
         mRecyclerView.setAdapter(mAdapter);
 
-        int columnCount = 2;
-        CustomStaggeredGridLayoutManager manager = new CustomStaggeredGridLayoutManager(columnCount, StaggeredGridLayoutManager.VERTICAL);
+        CustomStaggeredGridLayoutManager manager = new CustomStaggeredGridLayoutManager(COUNT_COLUMN_RECYCLERVIEW, StaggeredGridLayoutManager.VERTICAL);
         mRecyclerView.setLayoutManager(manager);
 
         mSwipeRefreshLayout = rootView.findViewById(R.id.swipe_refresh_layout);
@@ -97,17 +113,15 @@ public class NewsListFragment extends Fragment implements NewsListRecyclerViewAd
 
         mEmptyView = rootView.findViewById(R.id.tv_empty_view);
 
-        getLoaderManager().initLoader(1, null, this).forceLoad();
+        // get topic from SharedPrefs and then store it into a Bundle which is then
+        // passed to the loader
+        Bundle bundle = new Bundle();
+        bundle.putString(KEY_LOADER_TOPIC, getTopFromPrefs());
 
-        Toolbar toolbar = rootView.findViewById(R.id.toolbar_main);
-        AppCompatActivity activity = (AppCompatActivity) getActivity();
-        activity.setSupportActionBar(toolbar);
-        ActionBar actionBar = activity.getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.setTitle(getResources().getString(R.string.app_name));
-        }
+        getLoaderManager().initLoader(ID_LOADER, bundle, this).forceLoad();
 
         setOnClickListener();
+
         return rootView;
     }
 
@@ -125,9 +139,15 @@ public class NewsListFragment extends Fragment implements NewsListRecyclerViewAd
         }
     }
 
+    private String getTopFromPrefs() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        return preferences.getString(getString(SettingsActivity.MainSettingsFragment.keyPreference), getString(R.string.pref_topic_value));
+    }
+
     @Override
     public Loader<List<News>> onCreateLoader(int id, Bundle args) {
-        return new NewsListLoader(getActivity(), new FetchMyDataTaskStartedListener());
+        Log.i(TAG, "topic: " + args.getString(KEY_LOADER_TOPIC));
+        return new NewsListLoader(getActivity(), args.getString(KEY_LOADER_TOPIC), this);
     }
 
     @Override
@@ -156,17 +176,20 @@ public class NewsListFragment extends Fragment implements NewsListRecyclerViewAd
         mAdapter.swapData(null);
     }
 
+    // implementation for showing refresh indicator when the task starts
     @Override
     public void onTaskStarted() {
-        mSwipeRefreshLayout.setRefreshing(true);
-    }
+        // only show the refresh indicator when the app is initially started
+        // when the user is back from the browser to the article list screen,
+        // onStartLoading also gets called and we don't want to show the indicator
+        Log.i(TAG, "onTaskStarted getting called");
+        Log.i(TAG, "isInitiallyStarted: " + isInitiallyStarted);
 
-    // class for showing refresh indicator when the task starts
-    public class FetchMyDataTaskStartedListener implements OnRefreshStarted {
-
-        @Override
-        public void onTaskStarted() {
+        if (isInitiallyStarted) {
             mSwipeRefreshLayout.setRefreshing(true);
         }
+
+        isInitiallyStarted = false;
     }
+
 }

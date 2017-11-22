@@ -1,4 +1,4 @@
-package com.example.byunghwa.newsapp;
+package com.example.byunghwa.newsapp.interfaces;
 
 /**
  * Created by SAMSUNG on 11/21/2017.

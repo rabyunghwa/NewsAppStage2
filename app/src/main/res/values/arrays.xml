@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="pref_topic_options">
+        <item>DNA</item>
+        <item>Android</item>
+        <item>Korea</item>
+        <item>Insect</item>
+        <item>Udacity</item>
+    </string-array>
+    <string-array name="pref_topic_values">
+        <item>dna</item>
+        <item>android</item>
+        <item>korea</item>
+        <item>insect</item>
+        <item>udacity</item>
+    </string-array>
+</resources>
